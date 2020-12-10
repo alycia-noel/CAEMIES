@@ -96,7 +96,7 @@ class ConvAutoencoder(nn.Module):
        
         #Encoder
         self.encoder = nn.Sequential(
-            nn.Conv2d(3, 64, kernel_size= 7, stride = 1, padding=(3,3), padding_mode='reflect'),
+            nn.Conv2d(1, 64, kernel_size= 7, stride = 1, padding=(3,3), padding_mode='reflect'),
             nn.BatchNorm2d(64),
             nn.ReLU(),
             nn.Conv2d(64, 128, kernel_size= 3, stride = 2, padding=(1,1), padding_mode='reflect'),
@@ -111,13 +111,7 @@ class ConvAutoencoder(nn.Module):
             ResNetBasicBlock(256, 256, downsampling=downsampling),
             ResNetBasicBlock(256, 256, downsampling=downsampling),
             )
-       
-        # self.feature_mapping = nn.Sequential(
-        #     nn.Conv2d(256, 256, kernel_size = 1, stride = 1),
-        #     nn.BatchNorm2d(),
-        #     nn.ReLU()
-        #     )
-        
+
         #Decoder
         self.decoder = nn.Sequential(
             ResNetBasicBlock(256, 256, downsampling=downsampling),
@@ -131,17 +125,17 @@ class ConvAutoencoder(nn.Module):
             nn.ConvTranspose2d(128, 64, kernel_size= 3, stride = 2, padding=(1,1), padding_mode='zeros', output_padding=(1,1)),
             nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.ConvTranspose2d(64, 3, kernel_size= 7, stride = 1, padding=(3,3), padding_mode='zeros'),
-            nn.Tanh()
+            nn.ConvTranspose2d(64, 1, kernel_size= 7, stride = 1, padding=(3,3), padding_mode='zeros'),
+            nn.Sigmoid()
             )
 
 
     def forward(self, x):
-        x1 = self.encoder(x)
+        x1 = self.encoder(x)       # [ 32, 256, 64, 64]
         out = self.decoder(x1)
-        return out
+        return x1, out
 
-    def train_and_validate(self, trainLoader, validLoader, batch_size, lr, device, epochs=10,  which_model = 'Horse'):
+    def train_and_validate(self, trainLoader, validLoader, batch_size, lr, device, epochs=10,  which_model = 'Chest'):
         print("====== Pre-Training %s Autoencoder ======" %(which_model))
         optimizer = optim.Adam(self.parameters(), lr = 0.002, betas=(.5, .999))
         loss_function = nn.MSELoss()
@@ -162,18 +156,21 @@ class ConvAutoencoder(nn.Module):
                 #mini_batch = Variable(img_batch.view(-1, 256*256)).to(device)
                 img_batch = img_batch.to(device)
                 optimizer.zero_grad()
-                output = self(img_batch)
+                _, output = self(img_batch)
                 recon_loss = loss_function(output, img_batch)
                 recon_loss.backward()
                 optimizer.step()
                 
-                if batch_num % 3 == 0:
+                if batch_num % 10 == 0:
                     print("At img_batch %i. Loss %4f." % (batch_num + 1, recon_loss.item()))
-            
+                    test_img = output[1].permute(1, 2, 0).cpu().detach().numpy()
+                    plt.figure()
+                    plt.imshow(test_img, cmap='gray')
+                    plt.show()
                 running_train_losses.append(recon_loss.item())
             print("")
                 
-                # Validate
+            # Validate
             print("== Validating ==" )
             with torch.no_grad():
                 for batch_num, (image, _) in enumerate(validLoader):
@@ -196,7 +193,7 @@ class ConvAutoencoder(nn.Module):
             print("")
             train_losses.append(np.average(running_train_losses))
             val_losses.append(np.average(running_val_losses))
-        
+            
         #Plot the graph
         plt.figure(1)
         plt.title('Loss of Training and Validating the %s Autoencoder' % (which_model))
@@ -205,66 +202,12 @@ class ConvAutoencoder(nn.Module):
         plt.legend(loc='upper right')
         plt.xlabel('Epochs')
         plt.ylabel('Loss (%)')
-        plt.axis([1, epochs, 0, .3])
+        plt.axis([1, epochs, 0, .01])
         plt.show()
-# #Instantiate the model
-# model = ConvAutoencoder()
-# print(model)
-
-# #Loss function
-# criterion = nn.BCELoss()
-
-# #Optimizer
-# optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-
-# #Epochs
-# n_epochs = 100
-
-# for epoch in range(1, n_epochs+1):
-#     # monitor training loss
-#     train_loss = 0.0
-
-#     #Training
-#     for data in train_loader:
-#         images, _ = data
-#         images = images
-#         optimizer.zero_grad()
-#         outputs = model(images)
-#         loss = criterion(outputs, images)
-#         loss.backward()
-#         optimizer.step()
-#         train_loss += loss.item()*images.size(0)
-          
-#     train_loss = train_loss/len(train_loader)
-#     print('Epoch: {} \tTraining Loss: {:.6f}'.format(epoch, train_loss))
+        
+    def save_model(self, path):
+        torch.save(self.state_dict(), path)
     
-# #Batch of test images
-# dataiter = iter(test_loader)
-# images, labels = dataiter.next()
 
-# #Sample outputs
-# output = model(images)
-# images = images.numpy()
-
-# output = output.view(32, 3, 32, 32)
-# output = output.detach().numpy()
-
-# #Original Images
-# print("Original Images")
-# fig, axes = plt.subplots(nrows=1, ncols=5, sharex=True, sharey=True, figsize=(12,4))
-# for idx in np.arange(5):
-#     ax = fig.add_subplot(1, 5, idx+1, xticks=[], yticks=[])
-#     imshow(images[idx])
-#     ax.set_title(classes[labels[idx]])
-# plt.show()
-
-# #Reconstructed Images
-# print('Reconstructed Images')
-# fig, axes = plt.subplots(nrows=1, ncols=5, sharex=True, sharey=True, figsize=(12,4))
-# for idx in np.arange(5):
-#     ax = fig.add_subplot(1, 5, idx+1, xticks=[], yticks=[])
-#     imshow(output[idx])
-#     ax.set_title(classes[labels[idx]])
-# plt.show() 
     
     

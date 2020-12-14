@@ -164,8 +164,12 @@ class ConvAutoencoder(nn.Module):
                 if batch_num % 10 == 0:
                     print("At img_batch %i. Loss %4f." % (batch_num + 1, recon_loss.item()))
                     test_img = output[1].permute(1, 2, 0).cpu().detach().numpy()
+                    orig_img = img_batch[1].permute(1,2,0).cpu().detach().numpy()
                     plt.figure()
                     plt.imshow(test_img, cmap='gray')
+                    plt.show()
+                    plt.figure()
+                    plt.imshow(orig_img, cmap='gray')
                     plt.show()
                 running_train_losses.append(recon_loss.item())
             print("")
